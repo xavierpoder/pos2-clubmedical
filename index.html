@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POS Club Medical</title>
+  <style>
+    :root {
+      --primary: #4CAF50;
+      --error: #f44336;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+      background-color: #f9f9f9;
+    }
+    h1 {
+      color: #2c3e50;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    #product-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .product {
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+      transition: transform 0.3s ease;
+    }
+    .product:hover {
+      transform: translateY(-5px);
+    }
+    .product img {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+      border-bottom: 1px solid #eee;
+    }
+    .product-info {
+      padding: 15px;
+    }
+    .product h3 {
+      margin: 0 0 10px;
+      font-size: 16px;
+      color: #333;
+    }
+    .product p {
+      margin: 0 0 15px;
+      font-weight: bold;
+      color: var(--primary);
+    }
+    .product button {
+      width: 100%;
+      padding: 10px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.3s;
+    }
+    .product button:hover {
+      background: #45a049;
+    }
+    .cart {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+      margin-top: 30px;
+    }
+    .cart h2 {
+      margin-top: 0;
+      color: #2c3e50;
+      border-bottom: 2px solid #eee;
+      padding-bottom: 10px;
+    }
+    #cart-items {
+      list-style: none;
+      padding: 0;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    #cart-items li {
+      padding: 10px 0;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      justify-content: space-between;
+    }
+    .cart-total {
+      font-size: 18px;
+      text-align: right;
+      margin: 15px 0;
+    }
+    .cart-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    .cart-actions button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    #checkout {
+      background: var(--primary);
+      color: white;
+    }
+    #checkout:hover {
+      background: #45a049;
+    }
+    #clear-cart {
+      background: #f1f1f1;
+      color: #333;
+    }
+    #clear-cart:hover {
+      background: #ddd;
+    }
+    .error-container {
+      text-align: center;
+      padding: 30px;
+      background: #ffeeee;
+      border-radius: 10px;
+      margin: 20px 0;
+      border: 1px solid var(--error);
+    }
+    .error-container button {
+      padding: 10px 20px;
+      background: var(--error);
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 15px;
+    }
+    .loading {
+      text-align: center;
+      padding: 30px;
+      font-size: 18px;
+      color: #666;
+    }
+    @media (max-width: 768px) {
+      #product-list {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>POS Club Medical</h1>
+  
+  <div id="product-list" class="loading">
+    Cargando productos...
+  </div>
+  
+  <div class="cart">
+    <h2>Carrito</h2>
+    <ul id="cart-items"></ul>
+    <div class="cart-total">
+      <strong>Total: $<span id="cart-total">0.00</span></strong>
+    </div>
+    <div class="cart-actions">
+      <button id="clear-cart" onclick="clearCart()">Vaciar Carrito</button>
+      <button id="checkout" onclick="printTicket()">Imprimir Ticket</button>
+    </div>
+  </div>
+
+  <script>
+    const cart = [];
+    const workerUrl = 'https://woo-proxy.xavierpoder.workers.dev'; // Reemplaza con tu URL real
+
+    // Cargar productos desde el Worker
+    async function loadProducts() {
+      try {
+        document.getElementById('product-list').innerHTML = 
+          '<div class="loading">Cargando productos...</div>';
+        
+        const response = await fetch(workerUrl);
+        
+        if (!response.ok) {
+          throw new Error(`Error HTTP: ${response.status}`);
+        }
+        
+        const products = await response.json();
+        
+        if (!products || products.length === 0) {
+          throw new Error('No se encontraron productos');
+        }
+        
+        renderProducts(products);
+      } catch (error) {
+        console.error('Error al cargar productos:', error);
+        showError(error);
+      }
+    }
+
+    // Mostrar productos en la página
+    function renderProducts(products) {
+      const container = document.getElementById('product-list');
+      container.innerHTML = products.map(product => `
+        <div class="product">
+          <img src="${product.images[0]?.src || 'placeholder.jpg'}" alt="${product.name}" 
+               onerror="this.src='placeholder.jpg'">
+          <div class="product-info">
+            <h3>${product.name}</h3>
+            <p>$${product.price}</p>
+            <button onclick="addToCart(${JSON.stringify({
+              id: product.id,
+              name: product.name,
+              price: product.price,
+              image: product.images[0]?.src
+            })})">Agregar</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Mostrar mensaje de error
+    function showError(error) {
+      document.getElementById('product-list').innerHTML = `
+        <div class="error-container">
+          <p>Error al cargar productos</p>
+          <p><small>${error.message || 'Por favor intenta nuevamente'}</small></p>
+          <button onclick="loadProducts()">Reintentar</button>
+        </div>
+      `;
+    }
+
+    // Funciones del carrito
+    function addToCart(product) {
+      cart.push(product);
+      updateCart();
+    }
+
+    function updateCart() {
+      const list = document.getElementById("cart-items");
+      list.innerHTML = "";
+      let total = 0;
+      
+      cart.forEach(p => {
+        const item = document.createElement("li");
+        item.innerHTML = `
+          <span>${p.name}</span>
+          <span>$${parseFloat(p.price).toFixed(2)}</span>
+        `;
+        list.appendChild(item);
+        total += parseFloat(p.price);
+      });
+      
+      document.getElementById("cart-total").textContent = total.toFixed(2);
+    }
+
+    function clearCart() {
+      cart.length = 0;
+      updateCart();
+    }
+
+    function printTicket() {
+      if (cart.length === 0) {
+        alert("El carrito está vacío");
+        return;
+      }
+      
+      let content = `
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          h1 { text-align: center; }
+          .item { margin-bottom: 5px; }
+          .total { font-weight: bold; margin-top: 10px; border-top: 1px dashed #000; padding-top: 10px; }
+        </style>
+        <h1>Club Medical</h1>
+        <p>${new Date().toLocaleString()}</p>
+        <hr>
+      `;
+      
+      cart.forEach(p => {
+        content += `<div class="item">${p.name} - $${parseFloat(p.price).toFixed(2)}</div>`;
+      });
+      
+      content += `
+        <hr>
+        <div class="total">Total: $${document.getElementById("cart-total").textContent}</div>
+        <p style="text-align: center; margin-top: 20px;">¡Gracias por su compra!</p>
+      `;
+      
+      const printWindow = window.open('', '', 'width=350,height=500');
+      printWindow.document.write(content);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 500);
+    }
+
+    // Inicializar al cargar la página
+    document.addEventListener('DOMContentLoaded', loadProducts);
+  </script>
+</body>
+</html>
